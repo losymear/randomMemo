@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>随机文章复习工具</title>
     <style>
-        /* 简单的 CSS 样式 (保持不变) */
+        /* --- 基础样式 --- */
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             margin: 0;
@@ -20,6 +20,8 @@
             padding: 20px;
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            /* 为固定底部按钮留出空间 */
+            padding-bottom: 70px; 
         }
         h1 {
             color: #007aff;
@@ -27,12 +29,26 @@
             text-align: center;
             margin-bottom: 20px;
         }
+        
+        /* --- 菜单和列表样式 --- */
+        .menu-list { list-style: none; padding: 0; }
+        .menu-item { background-color: #f9f9f9; border: 1px solid #eee; border-radius: 8px; margin-bottom: 10px; padding: 15px; cursor: pointer; transition: background-color 0.2s; }
+        .menu-item:hover { background-color: #e5e5e5; }
+        .menu-item-title { font-weight: bold; font-size: 18px; color: #333; }
+        .menu-item-detail { font-size: 14px; color: #888; margin-top: 5px; }
+
+        /* --- 视图切换 --- */
+        .current-view { display: none; padding-top: 5px; }
+        .current-view.active { display: block; }
+        
+        /* --- 文章内容和 Markdown 渲染样式 --- */
         .markdown-content {
             border: 1px solid #eee;
             padding: 15px;
             border-radius: 8px;
             min-height: 200px;
             line-height: 1.6;
+            margin-top: 20px;
         }
         .markdown-content h1, .markdown-content h2 {
             border-bottom: 1px solid #eee;
@@ -45,25 +61,46 @@
             border-radius: 6px;
             overflow-x: auto;
         }
-        .action-bar {
-            margin-top: 20px;
-            display: flex;
-            gap: 10px;
+
+        /* --- 固定底部操作栏 --- */
+        .fixed-action-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            padding: 10px 0;
+            background: #fff;
+            border-top: 1px solid #ddd;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+            z-index: 10;
+            display: none; 
         }
-        .action-bar button {
-            flex-grow: 1;
+        .fixed-action-bar .inner-content {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        .fixed-action-bar button {
+            width: 100%;
             padding: 12px;
             border: none;
             border-radius: 8px;
-            background-color: #007aff;
+            background-color: #6c757d; 
             color: white;
             font-size: 16px;
             cursor: pointer;
             transition: background-color 0.2s;
         }
-        .action-bar button:hover {
-            background-color: #005bb5;
+        .fixed-action-bar button:hover {
+            background-color: #5a6268;
         }
+
+        /* --- 通用按钮/输入框样式 --- */
+        input[type="number"], input[type="text"], button { padding: 10px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 15px; width: 100%; box-sizing: border-box; font-size: 16px; }
+        button { background-color: #007aff; color: white; border: none; cursor: pointer; transition: background-color 0.2s; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        button:hover:not(:disabled) { background-color: #005bb5; }
+        
         /* 加载指示器样式 */
         #loading-indicator {
             position: fixed;
@@ -79,19 +116,101 @@
             color: #007aff;
             z-index: 1000;
         }
+
+        /* --- 文章列表专属样式 --- */
+        #article-list {
+            list-style: none;
+            padding: 0;
+        }
+        .list-item {
+            display: flex;
+            background-color: #f9f9f9;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            padding: 15px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .list-item:hover {
+            background-color: #e5e5e5;
+        }
+        .list-item-id {
+            font-weight: bold;
+            font-size: 16px;
+            color: #007aff;
+            margin-right: 15px;
+            min-width: 40px; /* 确保 ID 区域宽度一致 */
+            text-align: right;
+        }
+        .list-item-topic {
+            font-size: 16px;
+            color: #333;
+            flex-grow: 1;
+        }
+        #search-input {
+            margin-bottom: 15px;
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
     <div class="container">
-        <h1 id="article-title">随机文章复习工具</h1>
+        <h1 id="main-title">文章复习工具</h1>
         
-        <div id="article-view" class="markdown-content">
-            <p>正在加载配置，请稍候...</p>
+        <div class="data-status" id="data-status" style="text-align: center; font-size: 14px; color: #888; margin-bottom: 30px;">数据: 正在加载...</div>
+
+
+        <div id="menu-page" class="current-view active">
+            <ul class="menu-list">
+                <li class="menu-item" id="random-drill-item" onclick="fetchAndDisplayRandomArticle()">
+                    <div class="menu-item-title">🧠 1. 随机复习文章</div>
+                    <div class="menu-item-detail">随机抽取一篇复习笔记</div>
+                </li>
+                <li class="menu-item" onclick="showInputPage('query')">
+                    <div class="menu-item-title">🔍 2. 查询指定文章</div>
+                    <div class="menu-item-detail">输入 ID (1 到 N) 查看特定文章</div>
+                </li>
+                <li class="menu-item" id="list-menu-item" onclick="showListPage()" disabled>
+                    <div class="menu-item-title">📑 3. 查看全部文章列表</div>
+                    <div class="menu-item-detail">按主题搜索和浏览所有文章</div>
+                </li>
+            </ul>
+            <button id="clear-cache-btn" onclick="clearArticleCache()">
+                🔄 清除文章缓存
+            </button>
         </div>
 
-        <div class="action-bar">
-            <button id="next-article-btn" onclick="fetchAndDisplayRandomArticle()" disabled>获取下一篇随机文章</button>
+        <div id="input-page" class="current-view">
+            <div class="result-title" id="input-page-title" style="font-weight: bold; font-size: 20px; margin-bottom: 10px;">查询文章 - 输入 ID</div>
+            <input type="number" id="article-id-input" placeholder="请输入文章 ID (1 到 N)" min="1" oninput="validateInput()">
+            <button id="input-submit-btn" onclick="handleInputSubmit()" disabled>确定</button>
+            <button onclick="showMenuUI()" style="margin-top: 10px; background-color: #666;">返回主菜单</button>
+        </div>
+        
+        <div id="list-page" class="current-view">
+            <h2 style="color: #333; font-size: 20px; text-align: left;">文章目录与搜索</h2>
+            <input type="text" id="search-input" placeholder="输入主题关键字进行搜索..." oninput="filterArticleList()">
+            <ul id="article-list">
+                <li>列表正在加载...</li>
+            </ul>
+            <button onclick="showMenuUI()" style="margin-top: 10px; background-color: #666;">返回主菜单</button>
+        </div>
+
+
+        <div id="article-page" class="current-view">
+             <h2 id="article-title" style="color: #333; font-size: 20px; text-align: left;"></h2>
+            <div id="article-view" class="markdown-content">
+                <p>文章内容将在这里显示。</p>
+            </div>
+        </div>
+
+    </div>
+    
+    <div id="fixed-action-bar" class="fixed-action-bar">
+        <div class="inner-content">
+            <button id="article-next-btn" style="background-color: #007aff; margin-bottom: 5px;" onclick="fetchAndDisplayRandomArticle()">获取下一篇随机文章</button>
+            <button onclick="showMenuUI()">返回主菜单/控制台</button>
         </div>
     </div>
     
@@ -106,19 +225,41 @@
 
         // --- 配置区域 ---
         const GITHUB_BASE_URL = "https://raw.githubusercontent.com/losymear/cognition/main/memo/";
-        // 新的配置 JSON 文件 URL
         const CONFIG_URL = "https://raw.githubusercontent.com/losymear/cognition/main/files/json/config.json";
+        // 新增文章描述配置 URL
+        const MEMO_DESC_URL = "https://raw.githubusercontent.com/losymear/cognition/main/files/json/memodesc.json";
 
-        // ARTICLE_COUNT 现在是一个动态变量
-        let ARTICLE_COUNT = 0;
+
+        let ARTICLE_COUNT = 0; // 动态变量
+        const ARTICLE_CACHE = {}; // 内存缓存: 存储已加载的文章内容
+        let memoDescriptions = []; // 新增: 存储文章 ID 和 Topic 列表
 
         // --- DOM 元素引用 ---
+        const views = {
+            menu: document.getElementById('menu-page'),
+            input: document.getElementById('input-page'),
+            list: document.getElementById('list-page'), // 新增
+            article: document.getElementById('article-page')
+        };
+        const mainTitle = document.getElementById('main-title');
+        const dataStatus = document.getElementById('data-status');
         const articleTitle = document.getElementById('article-title');
         const articleView = document.getElementById('article-view');
         const loadingIndicator = document.getElementById('loading-indicator');
-        const nextArticleBtn = document.getElementById('next-article-btn');
+        const fixedActionBar = document.getElementById('fixed-action-bar');
+        
+        // 菜单/列表相关
+        const randomDrillItem = document.getElementById('random-drill-item');
+        const listMenuItem = document.getElementById('list-menu-item'); // 新增
+        const articleList = document.getElementById('article-list'); // 新增
+        const searchInput = document.getElementById('search-input'); // 新增
+        
+        // 输入页面的元素
+        const articleIdInput = document.getElementById('article-id-input');
+        const inputSubmitBtn = document.getElementById('input-submit-btn');
 
-        // --- 核心辅助函数 (适应 Web) ---
+
+        // --- 核心辅助函数 ---
 
         function setLoading(isLoading) {
             loadingIndicator.style.display = isLoading ? 'flex' : 'none';
@@ -129,91 +270,253 @@
             alert(`${title}\n\n${message}`);
         }
         
-        // --- 1. 读取配置函数 ---
+        function hideAllViews() {
+            Object.values(views).forEach(el => el.classList.remove('active'));
+            fixedActionBar.style.display = 'none'; // 切换视图时隐藏固定栏
+            // 确保搜索框在离开列表页时清空
+            searchInput.value = '';
+        }
 
+        // ======================================================
+        // 页面跳转逻辑
+        // ======================================================
+
+        function showMenuUI() {
+            hideAllViews();
+            views.menu.classList.add('active');
+            mainTitle.textContent = "文章复习工具";
+            
+            // 更新数据状态显示
+            const listCount = memoDescriptions.length;
+            const statusText = ARTICLE_COUNT > 0 
+                ? `文章总数: ${ARTICLE_COUNT} | 目录加载: ${listCount}` 
+                : "数据: 加载失败";
+            dataStatus.textContent = statusText;
+        }
+        
+        function showArticlePage() {
+            hideAllViews();
+            views.article.classList.add('active');
+            fixedActionBar.style.display = 'block'; // 在文章页显示固定栏
+            window.scrollTo(0, 0); // 确保文章查看页在最顶部
+        }
+        
+        function showInputPage() {
+            if (ARTICLE_COUNT < 1) {
+                webAlert("错误", "配置未加载或文章数量无效。");
+                return;
+            }
+            hideAllViews();
+            views.input.classList.add('active');
+            mainTitle.textContent = "查询指定文章 ID";
+            
+            articleIdInput.value = "";
+            articleIdInput.max = ARTICLE_COUNT;
+            validateInput();
+            articleIdInput.focus();
+        }
+
+        // 新增：文章列表页
+        function showListPage() {
+            if (memoDescriptions.length === 0) {
+                webAlert("错误", "文章目录数据未加载，请检查网络或配置。");
+                return;
+            }
+            hideAllViews();
+            views.list.classList.add('active');
+            mainTitle.textContent = "文章目录与搜索";
+            // 首次进入时渲染全部列表
+            renderArticleList(memoDescriptions);
+            searchInput.focus();
+        }
+
+        // ======================================================
+        // 文章列表和搜索逻辑
+        // ======================================================
+        
+        function renderArticleList(data) {
+            articleList.innerHTML = ''; // 清空现有列表
+            if (data.length === 0) {
+                articleList.innerHTML = '<li style="text-align: center; color: #888; padding: 20px;">未找到匹配的文章主题。</li>';
+                return;
+            }
+            
+            data.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'list-item';
+                // 使用匿名函数包装 fetchAndDisplayArticle，传递 item.id
+                li.onclick = () => fetchAndDisplayArticle(parseInt(item.id)); 
+                
+                li.innerHTML = `
+                    <div class="list-item-id">${item.id}.</div>
+                    <div class="list-item-topic">${item.topic || "【主题缺失】"}</div>
+                `;
+                articleList.appendChild(li);
+            });
+        }
+        
+        function filterArticleList() {
+            const searchTerm = searchInput.value.trim().toLowerCase();
+            
+            if (searchTerm === '') {
+                renderArticleList(memoDescriptions);
+                return;
+            }
+            
+            // 根据主题 (topic) 进行过滤
+            const filteredData = memoDescriptions.filter(item => 
+                item.topic && item.topic.toLowerCase().includes(searchTerm)
+            );
+            
+            renderArticleList(filteredData);
+        }
+
+        // ======================================================
+        // 数据加载与校验
+        // ======================================================
+        
+        function validateInput() {
+            const val = articleIdInput.value;
+            const isValid = /^\d+$/.test(val) && parseInt(val) >= 1 && parseInt(val) <= ARTICLE_COUNT;
+            inputSubmitBtn.disabled = !isValid;
+        }
+
+        function handleInputSubmit() {
+            const inputId = parseInt(articleIdInput.value.trim());
+            // 已经通过 validateInput 进行了初步校验
+            fetchAndDisplayArticle(inputId);
+        }
+        
         async function loadConfig() {
             setLoading(true);
+            const loadStartTime = Date.now();
+
+            // 1. 加载 maxMemoId (主要配置)
             try {
                 const resp = await fetch(CONFIG_URL);
-                
-                if (!resp.ok) {
-                    throw new Error(`无法获取配置：${resp.status}`);
-                }
-
+                if (!resp.ok) throw new Error(`无法获取配置：${resp.status}`);
                 const config = await resp.json();
-                
                 if (typeof config.maxMemoId !== 'number' || config.maxMemoId < 1) {
                     throw new Error(`配置格式错误或 maxMemoId 小于 1。`);
                 }
-
                 ARTICLE_COUNT = config.maxMemoId;
-                
-                // 配置加载成功，启用按钮并更新提示
-                nextArticleBtn.disabled = false;
-                articleView.innerHTML = `<p>配置加载成功！当前文章总数 (maxMemoId) 为：**${ARTICLE_COUNT}**。</p><p>点击下方按钮开始随机复习。</p>`;
-                
-                setLoading(false);
-                return true;
-
             } catch (error) {
                 setLoading(false);
-                webAlert("配置加载失败", `无法从 ${CONFIG_URL} 读取 maxMemoId。请检查网络或配置格式。\n错误信息: ${error.message}`);
-                nextArticleBtn.disabled = true;
-                articleView.innerHTML = `<p style="color: red;">配置加载失败，请刷新重试。</p>`;
-                return false;
+                webAlert("配置加载失败", `无法从 ${CONFIG_URL} 读取 maxMemoId。错误信息: ${error.message}`);
+                // 即使失败也尝试继续加载列表，但禁用相关功能
+                randomDrillItem.disabled = true;
+                listMenuItem.disabled = true;
+                showMenuUI();
+                return;
             }
+            
+            // 2. 加载文章描述列表
+            try {
+                const descResp = await fetch(MEMO_DESC_URL);
+                if (!descResp.ok) throw new Error(`无法获取目录：${descResp.status}`);
+                const listData = await descResp.json();
+                
+                // 确保数据是数组，并且每个元素有 id 和 topic 字段
+                if (Array.isArray(listData) && listData.every(item => item.id && item.topic)) {
+                    // 仅保留 ID 在 ARTICLE_COUNT 范围内的条目
+                    memoDescriptions = listData.filter(item => parseInt(item.id) >= 1 && parseInt(item.id) <= ARTICLE_COUNT);
+                } else {
+                    throw new Error("文章目录格式错误");
+                }
+                
+                listMenuItem.disabled = false; // 成功加载列表则启用菜单项
+            } catch (error) {
+                console.error("文章目录加载失败:", error);
+                webAlert("目录加载失败", `无法从 ${MEMO_DESC_URL} 加载文章目录。将无法使用“查看全部文章列表”功能。`);
+                listMenuItem.disabled = true;
+            }
+
+
+            // 最终状态更新
+            randomDrillItem.disabled = false; // 只要 ARTICLE_COUNT 加载成功就启用随机复习
+            
+            setLoading(false);
+            showMenuUI();
         }
-
-        // --- 2. 获取文章函数 ---
-
-        async function fetchAndDisplayRandomArticle() {
+        
+        // ======================================================
+        // 文章获取与渲染 (包含内存缓存)
+        // ======================================================
+        
+        async function fetchAndDisplayArticle(fileNumber) {
             if (ARTICLE_COUNT < 1) {
-                webAlert("错误", "文章数量配置无效，请刷新页面重新加载配置。");
+                webAlert("错误", "文章数量配置无效。");
+                showMenuUI();
+                return;
+            }
+            
+            // 1. 检查缓存
+            if (ARTICLE_CACHE[fileNumber]) {
+                console.log(`从内存缓存加载文章 ${fileNumber}`);
+                renderArticleView(fileNumber, ARTICLE_CACHE[fileNumber]);
+                showArticlePage();
                 return;
             }
 
-            // 1. 随机生成文件编号 (1 到 ARTICLE_COUNT)
-            let randomFileNumber = Math.floor(Math.random() * ARTICLE_COUNT) + 1;
-            let fileName = `${randomFileNumber}.md`;
+            // 2. 缓存未命中，发起网络请求
+            let fileName = `${fileNumber}.md`;
             let fullUrl = GITHUB_BASE_URL + fileName;
             
-            console.log(`尝试获取: ${fullUrl}`);
-
-            // 2. 获取文件内容
             setLoading(true);
-
+            
             try {
                 const resp = await fetch(fullUrl);
                 
                 setLoading(false);
 
                 if (!resp.ok) {
-                    webAlert("网络错误", `无法获取文件：${fileName} (状态码: ${resp.status})。请检查 URL 或文件是否存在。`);
+                    webAlert("网络错误", `无法获取文件：${fileName} (状态码: ${resp.status})。`);
+                    showMenuUI();
                     return;
                 }
 
                 let articleContent = await resp.text();
                 
-                // 检查内容是否为空或异常
-                if (articleContent.length < 10) { // 降低检查标准，避免误判
-                    webAlert("文件内容异常", `随机选取的文章 ${fileName} 内容过短或为空。`);
+                if (articleContent.length < 10) {
+                    webAlert("文件内容异常", `选取的文章 ${fileName} 内容过短或为空。`);
+                    showMenuUI();
                     return;
                 }
                 
-                // 3. 渲染主页面视图
-                renderArticleView(randomFileNumber, articleContent);
+                // 3. 写入缓存并渲染
+                ARTICLE_CACHE[fileNumber] = articleContent;
+                renderArticleView(fileNumber, articleContent);
+                showArticlePage();
 
             } catch (error) {
                 setLoading(false);
                 webAlert("网络请求失败", `在请求 ${fullUrl} 时发生错误：${error.message}`);
+                showMenuUI();
             }
         }
+        
+        async function fetchAndDisplayRandomArticle() {
+            if (ARTICLE_COUNT < 1) {
+                webAlert("错误", "文章数量配置无效，请检查配置。");
+                return;
+            }
 
-        /**
-         * 渲染文章视图（适应 Web DOM）
-         */
+            // 随机生成文件编号 (1 到 ARTICLE_COUNT)
+            let randomFileNumber = Math.floor(Math.random() * ARTICLE_COUNT) + 1;
+            
+            fetchAndDisplayArticle(randomFileNumber);
+        }
+
         function renderArticleView(articleNum, content) {
-            articleTitle.textContent = `复习文章 ${articleNum}.md`;
+            // 尝试从描述列表中获取 topic
+            const desc = memoDescriptions.find(item => item.id == articleNum);
+            const topic = desc ? ` - ${desc.topic}` : '';
+
+            // 更新固定操作栏上的按钮文本
+            document.getElementById('article-next-btn').textContent = `获取下一篇随机文章 (当前: ${articleNum}/${ARTICLE_COUNT})${topic}`;
+            
+            // 渲染标题和内容
+            articleTitle.textContent = `复习文章 ${articleNum}.md${topic}`;
 
             // 使用 marked.js 将 Markdown 转换为 HTML
             const renderedHtml = marked.parse(content);
@@ -221,6 +524,17 @@
             // 将 HTML 插入到文章内容区域
             articleView.innerHTML = renderedHtml;
         }
+
+        function clearArticleCache() {
+            const confirmed = confirm("确定要清除内存中的所有文章缓存吗？（这将强制下次加载时重新下载）");
+            if (confirmed) {
+                for (const prop of Object.keys(ARTICLE_CACHE)) {
+                    delete ARTICLE_CACHE[prop];
+                }
+                alert("文章缓存已清除。");
+            }
+        }
+
 
         // --- 脚本主流程 ---
 
