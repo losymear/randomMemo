@@ -459,7 +459,15 @@
             }
 
             // 2. 缓存未命中，发起网络请求
-            let fileName = `${fileNumber}.md`;
+            // --- 修改部分：根据 id 查找 topic 并构建文件名 id_topic.md ---
+            const desc = memoDescriptions.find(item => parseInt(item.id) === fileNumber);
+            let fileName;
+            if (desc && desc.topic) {
+                fileName = `${fileNumber}_${desc.topic}.md`;
+            } else {
+                fileName = `${fileNumber}.md`; // 降级处理
+            }
+            
             let fullUrl = GITHUB_BASE_URL + fileName;
             
             setLoading(true);
